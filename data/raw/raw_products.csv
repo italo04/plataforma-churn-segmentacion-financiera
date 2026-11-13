@@ -1,0 +1,9 @@
+product_id,product_name,product_category,monthly_fee,interest_rate
+PROD_01,Cuenta de Ahorros Clásica,Cuentas,5.0,0.015
+PROD_02,Cuenta Corriente Premium,Cuentas,15.0,0.005
+PROD_03,Tarjeta de Crédito Oro,Tarjetas,20.0,0.28
+PROD_04,Tarjeta de Crédito Black,Tarjetas,45.0,0.24
+PROD_05,Préstamo Personal,Préstamos,0.0,0.165
+PROD_06,Crédito Hipotecario,Préstamos,0.0,0.089
+PROD_07,Fondo Mutuo Inversión,Inversiones,10.0,0.075
+PROD_08,Seguro Protección Financiera,Seguros,12.0,0.0

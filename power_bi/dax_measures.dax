@@ -1,0 +1,111 @@
+// ============================================================================
+// REPOSITORIO DE MEDIDAS DAX - PLATAFORMA DE CHURN & SEGMENTACIÓN FINANCIERA
+// ============================================================================
+
+// 1. Total Clientes
+Total Clientes = DISTINCTCOUNT(Dim_Customer[customer_key])
+
+// 2. Clientes Churn (CALCULATE)
+Clientes Churn = 
+CALCULATE(
+    DISTINCTCOUNT(Dim_Customer[customer_key]),
+    Dim_Customer[is_churn] = 1
+)
+
+// 3. Clientes Activos
+Clientes Activos = 
+CALCULATE(
+    DISTINCTCOUNT(Dim_Customer[customer_key]),
+    Dim_Customer[is_active] = 1
+)
+
+// 4. Tasa de Churn
+Tasa de Churn = 
+DIVIDE([Clientes Churn], [Total Clientes], 0)
+
+// 5. Tasa de Retención
+Tasa de Retención = 
+1 - [Tasa de Churn]
+
+// 6. Volumen Total Transaccionado
+Volumen Total Transaccionado = 
+CALCULATE(
+    SUM(Fact_Transactions[amount]),
+    Fact_Transactions[status] = "Completed"
+)
+
+// 7. Ticket Promedio
+Ticket Promedio = 
+DIVIDE(
+    [Volumen Total Transaccionado],
+    CALCULATE(COUNT(Fact_Transactions[transaction_key]), Fact_Transactions[status] = "Completed"),
+    0
+)
+
+// 8. Ingresos por Comisiones (Fees)
+Ingresos Comisiones Banco = 
+SUM(Fact_Transactions[fee_amount])
+
+// 9. Customer Lifetime Value (LTV)
+Customer Lifetime Value (LTV) = 
+AVERAGEX(
+    VALUES(Dim_Customer[customer_key]),
+    [Ingresos Comisiones Banco] + ([Volumen Total Transaccionado] * 0.012)
+)
+
+// 10. Fugas en el Periodo (USERELATIONSHIP)
+Fugas en el Periodo = 
+CALCULATE(
+    DISTINCTCOUNT(Dim_Customer[customer_key]),
+    USERELATIONSHIP(Dim_Customer[churn_date], Dim_Date[full_date]),
+    Dim_Customer[is_churn] = 1,
+    NOT(ISBLANK(Dim_Customer[churn_date]))
+)
+
+// 11. Altas Nuevas en el Periodo (USERELATIONSHIP)
+Altas Nuevas en el Periodo = 
+CALCULATE(
+    DISTINCTCOUNT(Dim_Customer[customer_key]),
+    USERELATIONSHIP(Dim_Customer[acquisition_date], Dim_Date[full_date])
+)
+
+// 12. Volumen Transaccional YTD (DATESYTD)
+Volumen Transaccional YTD = 
+CALCULATE(
+    [Volumen Total Transaccionado],
+    DATESYTD(Dim_Date[full_date])
+)
+
+// 13. Fugas Acumuladas YTD (DATESYTD + USERELATIONSHIP)
+Fugas Acumuladas YTD = 
+CALCULATE(
+    [Fugas en el Periodo],
+    DATESYTD(Dim_Date[full_date])
+)
+
+// 14. Crecimiento MoM Volumen (%)
+Crecimiento MoM Volumen = 
+VAR MesActual = [Volumen Total Transaccionado]
+VAR MesAnterior = 
+    CALCULATE(
+        [Volumen Total Transaccionado],
+        DATEADD(Dim_Date[full_date], -1, MONTH)
+    )
+RETURN
+DIVIDE(MesActual - MesAnterior, MesAnterior, 0)
+
+// 15. Ratio de Digitalización (%)
+Ratio de Digitalización = 
+VAR TransaccionesDigitales = 
+    CALCULATE(
+        COUNT(Fact_Transactions[transaction_key]),
+        Fact_Transactions[channel] IN {"Mobile App", "Web Banking"},
+        Fact_Transactions[status] = "Completed"
+    )
+VAR TotalTransacciones = 
+    CALCULATE(
+        COUNT(Fact_Transactions[transaction_key]),
+        Fact_Transactions[status] = "Completed"
+    )
+RETURN
+DIVIDE(TransaccionesDigitales, TotalTransacciones, 0)
