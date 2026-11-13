@@ -204,7 +204,7 @@ El proyecto incluye más de 12 medidas DAX estratégicas documentadas en [`power
 
 ### Paso 1: Clonar el Repositorio
 ```bash
-git clone https://github.com/tu-usuario/plataforma-churn-segmentacion-financiera.git
+git clone https://github.com/italo04/plataforma-churn-segmentacion-financiera.git
 cd plataforma-churn-segmentacion-financiera
 ```
 
