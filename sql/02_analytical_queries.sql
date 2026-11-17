@@ -224,7 +224,7 @@ gaps_calculated AS (
     WHERE next_tx_date IS NOT NULL
 )
 SELECT 
-    CASE WHEN is_churn = 1 THEN 'Cliente Fiel / Retenido' ELSE 'Cliente Churn / Cancelado' END AS customer_status,
+    CASE WHEN is_churn = 1 THEN 'Cliente Churn / Cancelado' ELSE 'Cliente Fiel / Retenido' END AS customer_status,
     ROUND(AVG(days_to_next_tx), 1) AS avg_days_between_tx,
     ROUND(MAX(days_to_next_tx), 1) AS max_gap_days,
     ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_next_tx), 1) AS median_gap_days

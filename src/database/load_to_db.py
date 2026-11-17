@@ -57,19 +57,39 @@ def load_tables(engine, proc_dir):
                 continue
                 
             df = pd.read_csv(csv_path)
-            # Reemplazar tabla si existe
+            # Reemplaza la tabla en modo standalone; para preservar DDL/FKs en PostgreSQL,
+            # ejecutar primero sql/01_schema_star_ddl.sql y usar if_exists="append".
             df.to_sql(table_name, conn, if_exists="replace", index=False, chunksize=5000)
             print(f"   [OK] Tabla '{table_name}' cargada exitosamente: {len(df):,} filas.")
+
+        # Crear índices analíticos en claves de unión (preserva rendimiento tras to_sql)
+        index_statements = [
+            "CREATE INDEX IF NOT EXISTS idx_dim_customer_key ON dim_customer(customer_key);",
+            "CREATE INDEX IF NOT EXISTS idx_dim_product_key ON dim_product(product_key);",
+            "CREATE INDEX IF NOT EXISTS idx_dim_date_key ON dim_date(date_key);",
+            "CREATE INDEX IF NOT EXISTS idx_fact_tx_customer ON fact_transactions(customer_key);",
+            "CREATE INDEX IF NOT EXISTS idx_fact_tx_product ON fact_transactions(product_key);",
+            "CREATE INDEX IF NOT EXISTS idx_fact_tx_date ON fact_transactions(date_key);",
+        ]
+        for stmt in index_statements:
+            conn.execute(text(stmt))
+        print("   [OK] Índices B-Tree creados sobre claves primarias y foráneas.")
             
 def run_verification_query(engine):
     """Ejecuta una consulta de verificación de integridad referencial y métricas clave."""
     print("\n>> Ejecutando consulta de verificación analítica en la base de datos...")
+    # Importante: calcular métricas de clientes a nivel de cliente único (COUNT DISTINCT)
+    # para evitar que el LEFT JOIN con transacciones multiplique el conteo de clientes churn.
     query = """
     SELECT 
         c.customer_segment,
         COUNT(DISTINCT c.customer_key) AS total_clientes,
-        SUM(c.is_churn) AS clientes_churn,
-        ROUND(AVG(c.is_churn) * 100, 2) AS tasa_churn_pct,
+        COUNT(DISTINCT CASE WHEN c.is_churn = 1 THEN c.customer_key END) AS clientes_churn,
+        ROUND(
+            CAST(COUNT(DISTINCT CASE WHEN c.is_churn = 1 THEN c.customer_key END) AS FLOAT) * 100.0
+            / NULLIF(COUNT(DISTINCT c.customer_key), 0),
+            2
+        ) AS tasa_churn_pct,
         COUNT(f.transaction_key) AS total_transacciones,
         ROUND(SUM(f.amount), 2) AS monto_total,
         ROUND(AVG(f.amount), 2) AS ticket_promedio
@@ -80,6 +100,9 @@ def run_verification_query(engine):
     """
     with engine.connect() as conn:
         res = pd.read_sql_query(text(query), conn)
+        assert (res["clientes_churn"] <= res["total_clientes"]).all(), (
+            "Error de integridad: clientes_churn excede total_clientes."
+        )
         print(res.to_string(index=False))
 
 def main():

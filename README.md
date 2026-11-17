@@ -105,7 +105,7 @@ El Data Warehouse está modelado bajo la metodología de Ralph Kimball, separand
 
 ## 🔍 5. Consultas Analíticas SQL Avanzadas
 
-Los scripts en [`sql/02_analytical_queries.sql`](file:///c:/Users/italo/Documents/Ciclo%202026-2/Proyectos/Plataforma%20End-to-End%20de%20Churn%20%26%20Segmentación%20de%20Clientes%20Financieros/sql/02_analytical_queries.sql) y [`sql/03_rfm_segmentation_sql.sql`](file:///c:/Users/italo/Documents/Ciclo%202026-2/Proyectos/Plataforma%20End-to-End%20de%20Churn%20%26%20Segmentación%20de%20Clientes%20Financieros/sql/03_rfm_segmentation_sql.sql) resuelven preguntas comerciales clave:
+Los scripts en [`sql/02_analytical_queries.sql`](sql/02_analytical_queries.sql) y [`sql/03_rfm_segmentation_sql.sql`](sql/03_rfm_segmentation_sql.sql) resuelven preguntas comerciales clave:
 
 ### A. Detección Temprana de Churn Mes a Mes con `LAG()` y CTEs
 Permite contrastar el consumo actual de un cliente contra su mes anterior. Una caída sostenida superior al 50% activa la bandera `'ALERTA: Caída Crítica > 50%'`:
@@ -134,9 +134,9 @@ Calcula los quintiles de Recencia, Frecuencia y Monto y clasifica a la cartera e
 
 ---
 
-## 📊 6. Dashboard en Power BI & Medidas DAX
+## 📊 6. Preparación para Power BI & Medidas DAX
 
-El proyecto incluye más de 12 medidas DAX estratégicas documentadas en [`power_bi/DAX_MEASURES.md`](file:///c:/Users/italo/Documents/Ciclo%202026-2/Proyectos/Plataforma%20End-to-End%20de%20Churn%20%26%20Segmentación%20de%20Clientes%20Financieros/power_bi/DAX_MEASURES.md):
+El proyecto incluye **15 medidas DAX documentadas** listas para construir un dashboard ejecutivo en Power BI Desktop, detalladas en [`power_bi/DAX_MEASURES.md`](power_bi/DAX_MEASURES.md) y listas para importar en [`power_bi/dax_measures.dax`](power_bi/dax_measures.dax) *(archivo `.pbix` pendiente de ensamblaje visual en Power BI Desktop)*:
 
 ### Ejemplos Clave de DAX Implementado:
 
@@ -189,10 +189,15 @@ El proyecto incluye más de 12 medidas DAX estratégicas documentadas en [`power
   * **Cluster Tradicional / Consumo Moderado:** 1,904 clientes de banca retail masiva con alta fidelidad (tasa churn solo 4.25%).
   * **Cluster Wealth / Clientes VIP:** 568 clientes de alto patrimonio con gasto promedio superior a $57,800 y ticket promedio de $1,746.
 
-### 2. Clasificador Predictivo de Churn (Supervisado)
-* **Algoritmo:** `RandomForestClassifier` balanceado con 150 estimadores.
-* **Desempeño:** **ROC-AUC en prueba = 0.9989**, Accuracy = 98%, F1-Score = 0.95 para la clase minoritaria (Churn).
-* **Exportación de Scoring:** Cada cliente en `data/processed/customer_churn_scored.csv` cuenta con una probabilidad individual de fuga (`churn_probability`) y una etiqueta de riesgo (`Riesgo Bajo`, `Moderado`, `Alto`, `Crítico`).
+### 2. Clasificador de Estado de Churn (Supervisado — Datos Sintéticos)
+* **Algoritmo:** `RandomForestClassifier` balanceado con 150 estimadores evaluado sobre partición de prueba (750 clientes de un total de 3,000 clientes sintéticos).
+* **Desempeño sobre la simulación:** ROC-AUC en prueba de `0.998` (Accuracy = 98%, F1-Score = 0.95).
+* **Exportación de Scoring:** Cada cliente en `data/processed/customer_churn_scored.csv` cuenta con una puntuación de riesgo (`churn_probability`) y una etiqueta de prioridad (`Riesgo Bajo`, `Moderado`, `Alto`, `Crítico`).
+
+> **⚠️ Nota Metodológica y Limitaciones (Transparencia Técnica):**
+> * **Origen de los datos:** El dataset (3,000 clientes y 62,132 transacciones) es generado sintéticamente mediante `src/generator/generate_banking_data.py` para fines académicos y de demostración de ingeniería analítica.
+> * **Clasificación retrospectiva vs. predicción futura (Temporal Leakage):** En la versión actual del ETL, las variables de recencia (`days_since_last_tx`) se calculan respecto a una fecha de referencia posterior al cese de actividad de las cuentas canceladas. Por ello, el clasificador distingue con muy alta precisión el estado histórico de abandono dentro de la simulación (incluso usando solo recencia alcanza ROC-AUC > 0.99), pero **no debe interpretarse como predicción prospectiva de fuga futura**. Para un despliegue productivo predictivo se requiere rediseñar la ventana de extracción con una fecha de corte fija (*snapshot date*) y evaluar sobre fugas ocurridas estrictamente después del corte (*out-of-time validation*).
+> * **Estado de Power BI:** El repositorio incluye las tablas dimensionales procesadas, 15 medidas DAX validadas y una guía de implementación; el archivo `.pbix` interactivo se encuentra pendiente de ensamblaje en Power BI Desktop.
 
 ---
 
@@ -222,42 +227,29 @@ pip install -r requirements.txt
 ```bash
 python run_project.py
 ```
-*Este comando orquesta automáticamente la generación de datos crudos, el proceso ETL, la carga y verificación en la base de datos relacional, el clustering K-Means y el modelo de scoring predictivo.*
+*Este comando orquesta automáticamente la generación de datos crudos, el proceso ETL, la carga e indexación B-Tree en la base de datos relacional (SQLite por defecto), el clustering K-Means y el scoring supervisado.*
 
 ---
 
-## 📋 9. Pasos Manuales que Debes Realizar
+## 📋 9. Integración con Power BI Desktop y PostgreSQL
 
-Para completar la puesta en marcha al 100%, solo debes seguir estos sencillos pasos manuales:
+### A. Conectar los Datos en Power BI Desktop
+1. Abre **Power BI Desktop** y sigue la guía paso a paso en [`power_bi/powerbi_dashboard_guide.md`](power_bi/powerbi_dashboard_guide.md).
+2. Importa los archivos CSV del modelo dimensional desde `data/processed/` (`dim_customers.csv`, `dim_products.csv`, `dim_dates.csv`, `fact_transactions.csv`).
+3. Crea las medidas DAX tomando las fórmulas de [`power_bi/dax_measures.dax`](power_bi/dax_measures.dax).
 
-### 1. Publicar el Proyecto en tu Cuenta de GitHub:
-1. Ve a [GitHub](https://github.com/) e inicia sesión.
-2. Haz clic en **New repository** y nómbralo (por ejemplo: `plataforma-churn-segmentacion-financiera`). Déjalo público y **no marques** "Add README" ni ".gitignore" (ya los tenemos listos).
-3. En tu terminal local, ejecuta:
-   ```bash
-   git branch -M main
-   git remote add origin https://github.com/TU_USUARIO_GITHUB/plataforma-churn-segmentacion-financiera.git
-   git push -u origin main
-   ```
-
-### 2. Abrir Power BI Desktop y Conectar los Datos:
-1. Abre **Power BI Desktop**.
-2. Sigue la guía paso a paso descrita en [`power_bi/powerbi_dashboard_guide.md`](file:///c:/Users/italo/Documents/Ciclo%202026-2/Proyectos/Plataforma%20End-to-End%20de%20Churn%20%26%20Segmentación%20de%20Clientes%20Financieros/power_bi/powerbi_dashboard_guide.md).
-3. Importa los archivos CSV de `data/processed/`.
-4. Copia las fórmulas DAX desde [`power_bi/dax_measures.dax`](file:///c:/Users/italo/Documents/Ciclo%202026-2/Proyectos/Plataforma%20End-to-End%20de%20Churn%20%26%20Segmentación%20de%20Clientes%20Financieros/power_bi/dax_measures.dax).
-
-### 3. (Opcional) Probar las Consultas SQL en PostgreSQL:
-Si deseas correr las consultas en una instancia real de PostgreSQL:
-1. Crea una base de datos llamada `bank_dw` en tu pgAdmin o cliente preferido.
-2. Ejecuta:
+### B. Ejecutar en PostgreSQL Empresarial
+1. Crea una base de datos llamada `bank_dw` y ejecuta [`sql/01_schema_star_ddl.sql`](sql/01_schema_star_ddl.sql) para inicializar las tablas con claves primarias y foráneas.
+2. Carga los datos mediante:
    ```bash
    python src/database/load_to_db.py --db-type postgresql --url postgresql://postgres:tu_password@localhost:5432/bank_dw
    ```
-3. Abre y ejecuta los archivos de la carpeta `sql/` para ver los resultados analíticos.
+3. Ejecuta las consultas analíticas en [`sql/02_analytical_queries.sql`](sql/02_analytical_queries.sql) y [`sql/03_rfm_segmentation_sql.sql`](sql/03_rfm_segmentation_sql.sql).
 
 ---
 
 ## 👨‍💻 Autor y Contacto
-* **Desarrollador:** Italo Mijail
+* **Desarrollador:** Italo Mijail Ramos Diaz (Ingeniería Informática — PUCP)
 * **Email:** italomijail@gmail.com
-* **Especialidad:** Ingeniería de Datos, Analítica Avanzada, Machine Learning & Business Intelligence Financiero.
+* **GitHub:** [github.com/italo04](https://github.com/italo04)
+* **Portafolio:** [italo04.github.io/portafolio](https://italo04.github.io/portafolio/)
